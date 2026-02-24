@@ -2,20 +2,6 @@
 
 A complete full-stack web application featuring real-time stock prices and an AI-powered chatbot.
 
-## 🎓 Learning Objectives
-
-This project teaches:
-- ✅ SQL database design and manipulation
-- ✅ MySQL with Python (SQLAlchemy ORM)
-- ✅ Docker containerization
-- ✅ FastAPI for building REST APIs
-- ✅ React frontend development
-- ✅ WebSocket for real-time updates
-- ✅ AI integration 
-- ✅ Full-stack application architecture
-
----
-
 ## 🏗️ Architecture
 
 ```
