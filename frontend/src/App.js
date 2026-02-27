@@ -1,10 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { TrendingUp, TrendingDown, Search, MessageCircle, X, Send, Plus, Trash2, BarChart3 } from 'lucide-react';
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { TrendingUp, TrendingDown, Search, MessageCircle, X, Send, Plus, Trash2, BarChart3, Activity, DollarSign, Percent, Clock, Sun, Moon, RefreshCw, Info, Building2, PieChart } from 'lucide-react';
 import './App.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+
+// Chart period options
+const CHART_PERIODS = [
+  { label: '1D', period: '1d', interval: '5m' },
+  { label: '5D', period: '5d', interval: '15m' },
+  { label: '1M', period: '1mo', interval: '1h' },
+  { label: '3M', period: '3mo', interval: '1d' },
+  { label: '1Y', period: '1y', interval: '1d' },
+  { label: '5Y', period: '5y', interval: '1wk' },
+];
 
 function App() {
   // State management
@@ -13,13 +23,23 @@ function App() {
   const [stockHistory, setStockHistory] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
+  const [marketIndices, setMarketIndices] = useState([]);
+  const [trendingStocks, setTrendingStocks] = useState([]);
+  
+  // Chart state
+  const [selectedPeriod, setSelectedPeriod] = useState(CHART_PERIODS[0]);
+  const [isLoadingChart, setIsLoadingChart] = useState(false);
+  
+  // Theme state
+  const [isDarkMode, setIsDarkMode] = useState(true);
   
   // Chat state
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [addingStock, setAddingStock] = useState(null); // Track which stock is being added
+  const [addingStock, setAddingStock] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const chatEndRef = useRef(null);
   
   // Session ID for chat
@@ -28,9 +48,11 @@ function App() {
   // Polling interval ref for real-time updates
   const pollingIntervalRef = useRef(null);
 
-  // Load watchlist on mount
+  // Load initial data on mount
   useEffect(() => {
     loadWatchlist();
+    loadMarketIndices();
+    loadTrendingStocks();
     startPolling();
     
     return () => {
@@ -39,12 +61,18 @@ function App() {
         clearInterval(pollingIntervalRef.current);
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Auto-scroll chat to bottom
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
+
+  // Theme effect
+  useEffect(() => {
+    document.body.classList.toggle('light-mode', !isDarkMode);
+  }, [isDarkMode]);
 
   // Ref to store current watchlist for polling (avoids closure issues)
   const watchlistRef = useRef(watchlist);
@@ -53,6 +81,26 @@ function App() {
   useEffect(() => {
     watchlistRef.current = watchlist;
   }, [watchlist]);
+
+  // Load market indices
+  const loadMarketIndices = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/market/indices`);
+      setMarketIndices(response.data.indices || []);
+    } catch (error) {
+      console.error('Error loading market indices:', error);
+    }
+  };
+
+  // Load trending stocks
+  const loadTrendingStocks = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/market/trending`);
+      setTrendingStocks(response.data.trending || []);
+    } catch (error) {
+      console.error('Error loading trending stocks:', error);
+    }
+  };
 
   // Fetch stock updates via HTTP polling (more reliable than WebSocket)
   const fetchStockUpdates = async () => {
@@ -115,20 +163,78 @@ function App() {
     if (watchlist.length > 0) {
       startPolling();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watchlist.length]); // Only restart when watchlist size changes
 
   // Select a stock to view details
   const selectStock = async (symbol) => {
     try {
+      setIsLoadingChart(true);
       const response = await axios.get(`${API_URL}/api/stocks/${symbol}`);
       setSelectedStock(response.data);
       
-      // Load historical data
-      const historyResponse = await axios.get(`${API_URL}/api/stocks/${symbol}/history?period=1d&interval=5m`);
-      setStockHistory(historyResponse.data.data);
+      // Load historical data with selected period
+      await loadStockHistory(symbol, selectedPeriod);
     } catch (error) {
       console.error('Error selecting stock:', error);
+    } finally {
+      setIsLoadingChart(false);
     }
+  };
+
+  // Load stock history with period
+  const loadStockHistory = async (symbol, periodObj) => {
+    try {
+      setIsLoadingChart(true);
+      const historyResponse = await axios.get(
+        `${API_URL}/api/stocks/${symbol}/history?period=${periodObj.period}&interval=${periodObj.interval}`
+      );
+      setStockHistory(historyResponse.data.data);
+    } catch (error) {
+      console.error('Error loading history:', error);
+    } finally {
+      setIsLoadingChart(false);
+    }
+  };
+
+  // Handle period change
+  const handlePeriodChange = (periodObj) => {
+    setSelectedPeriod(periodObj);
+    if (selectedStock) {
+      loadStockHistory(selectedStock.symbol, periodObj);
+    }
+  };
+
+  // Refresh all data
+  const refreshAllData = async () => {
+    setIsRefreshing(true);
+    await Promise.all([
+      loadWatchlist(),
+      loadMarketIndices(),
+      loadTrendingStocks(),
+    ]);
+    if (selectedStock) {
+      await selectStock(selectedStock.symbol);
+    }
+    setIsRefreshing(false);
+  };
+
+  // Format large numbers
+  const formatNumber = (num) => {
+    if (!num) return 'N/A';
+    if (num >= 1e12) return `$${(num / 1e12).toFixed(2)}T`;
+    if (num >= 1e9) return `$${(num / 1e9).toFixed(2)}B`;
+    if (num >= 1e6) return `$${(num / 1e6).toFixed(2)}M`;
+    return num.toLocaleString();
+  };
+
+  // Format volume
+  const formatVolume = (num) => {
+    if (!num) return 'N/A';
+    if (num >= 1e9) return `${(num / 1e9).toFixed(2)}B`;
+    if (num >= 1e6) return `${(num / 1e6).toFixed(2)}M`;
+    if (num >= 1e3) return `${(num / 1e3).toFixed(2)}K`;
+    return num.toLocaleString();
   };
 
   // Debounced search ref
@@ -241,7 +347,7 @@ function App() {
   };
 
   return (
-    <div className="app">
+    <div className={`app ${isDarkMode ? 'dark' : 'light'}`}>
       {/* Header */}
       <header className="header">
         <div className="header-content">
@@ -249,46 +355,81 @@ function App() {
             <BarChart3 size={32} />
             <h1>AI StockPulse</h1>
           </div>
-          <div className="search-bar">
-            <Search size={20} />
-            <input
-              type="text"
-              placeholder="Search stocks (e.g., AAPL, GOOGL)..."
-              value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
-            />
+          
+          <div className="search-container">
+            <div className="search-bar">
+              <Search size={20} />
+              <input
+                type="text"
+                placeholder="Search stocks (e.g., AAPL, GOOGL)..."
+                value={searchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
+              />
+            </div>
+            
+            {/* Search Results */}
+            {searchResults.length > 0 && (
+              <div className="search-results">
+                {searchResults.map(stock => (
+                  <div 
+                    key={stock.symbol} 
+                    className={`search-result-item ${addingStock === stock.symbol ? 'adding' : ''}`}
+                  >
+                    <div className="stock-info-text">
+                      <strong>{stock.symbol}</strong>
+                      <span>{stock.name}</span>
+                    </div>
+                    <button 
+                      className="add-stock-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        addToWatchlist(stock.symbol);
+                      }}
+                      disabled={addingStock === stock.symbol}
+                    >
+                      {addingStock === stock.symbol ? (
+                        <span className="loading-spinner"></span>
+                      ) : (
+                        <>
+                          <Plus size={16} />
+                          <span>Add</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          
+          <div className="header-actions">
+            <button 
+              className={`icon-btn ${isRefreshing ? 'spinning' : ''}`}
+              onClick={refreshAllData}
+              title="Refresh Data"
+            >
+              <RefreshCw size={20} />
+            </button>
+            <button 
+              className="icon-btn"
+              onClick={() => setIsDarkMode(!isDarkMode)}
+              title="Toggle Theme"
+            >
+              {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
           </div>
         </div>
         
-        {/* Search Results */}
-        {searchResults.length > 0 && (
-          <div className="search-results">
-            {searchResults.map(stock => (
-              <div 
-                key={stock.symbol} 
-                className={`search-result-item ${addingStock === stock.symbol ? 'adding' : ''}`}
-              >
-                <div className="stock-info-text">
-                  <strong>{stock.symbol}</strong>
-                  <span>{stock.name}</span>
-                </div>
-                <button 
-                  className="add-stock-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    addToWatchlist(stock.symbol);
-                  }}
-                  disabled={addingStock === stock.symbol}
-                >
-                  {addingStock === stock.symbol ? (
-                    <span className="loading-spinner"></span>
-                  ) : (
-                    <>
-                      <Plus size={16} />
-                      <span>Add</span>
-                    </>
-                  )}
-                </button>
+        {/* Market Indices Ticker */}
+        {marketIndices.length > 0 && (
+          <div className="market-ticker">
+            {marketIndices.map(index => (
+              <div key={index.symbol} className="ticker-item">
+                <span className="ticker-name">{index.display_name || index.symbol}</span>
+                <span className="ticker-price">{index.price?.toFixed(2)}</span>
+                <span className={`ticker-change ${index.change_percent >= 0 ? 'positive' : 'negative'}`}>
+                  {index.change_percent >= 0 ? '+' : ''}{index.change_percent?.toFixed(2)}%
+                </span>
               </div>
             ))}
           </div>
@@ -298,40 +439,79 @@ function App() {
       {/* Main Content */}
       <div className="main-content">
         {/* Watchlist Sidebar */}
-        <aside className="watchlist">
-          <h2>Your Watchlist</h2>
-          <div className="watchlist-items">
-            {watchlist.map(stock => (
-              <div 
-                key={stock.symbol}
-                className={`watchlist-item ${selectedStock?.symbol === stock.symbol ? 'active' : ''}`}
-                onClick={() => selectStock(stock.symbol)}
-              >
-                <div className="stock-info">
-                  <div className="stock-header">
-                    <strong>{stock.symbol}</strong>
-                    <button 
-                      className="remove-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeFromWatchlist(stock.symbol);
-                      }}
-                    >
-                      <Trash2 size={16} />
-                    </button>
+        <aside className="sidebar">
+          <div className="watchlist">
+            <h2>
+              <Activity size={20} />
+              Your Watchlist
+            </h2>
+            <div className="watchlist-items">
+              {watchlist.length === 0 ? (
+                <div className="empty-watchlist">
+                  <p>No stocks in watchlist</p>
+                  <span>Search to add stocks</span>
+                </div>
+              ) : (
+                watchlist.map(stock => (
+                  <div 
+                    key={stock.symbol}
+                    className={`watchlist-item ${selectedStock?.symbol === stock.symbol ? 'active' : ''}`}
+                    onClick={() => selectStock(stock.symbol)}
+                  >
+                    <div className="stock-info">
+                      <div className="stock-header">
+                        <strong>{stock.symbol}</strong>
+                        <button 
+                          className="remove-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeFromWatchlist(stock.symbol);
+                          }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                      <span className="company-name">{stock.company_name}</span>
+                    </div>
+                    <div className="stock-price">
+                      <strong>${stock.price?.toFixed(2)}</strong>
+                      <span className={stock.change_percent >= 0 ? 'positive' : 'negative'}>
+                        {stock.change_percent >= 0 ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
+                        {stock.change_percent?.toFixed(2)}%
+                      </span>
+                    </div>
                   </div>
-                  <span className="company-name">{stock.company_name}</span>
-                </div>
-                <div className="stock-price">
-                  <strong>${stock.price?.toFixed(2)}</strong>
-                  <span className={stock.change_percent >= 0 ? 'positive' : 'negative'}>
-                    {stock.change_percent >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
-                    {stock.change_percent?.toFixed(2)}%
-                  </span>
-                </div>
-              </div>
-            ))}
+                ))
+              )}
+            </div>
           </div>
+          
+          {/* Trending Section */}
+          {trendingStocks.length > 0 && (
+            <div className="trending-section">
+              <h3>
+                <TrendingUp size={18} />
+                Trending Today
+              </h3>
+              <div className="trending-items">
+                {trendingStocks.slice(0, 5).map(stock => (
+                  <div 
+                    key={stock.symbol}
+                    className="trending-item"
+                    onClick={() => selectStock(stock.symbol)}
+                  >
+                    <div className="trending-info">
+                      <strong>{stock.symbol}</strong>
+                      <span>${stock.price?.toFixed(2)}</span>
+                    </div>
+                    <span className={`trending-change ${stock.change_percent >= 0 ? 'positive' : 'negative'}`}>
+                      {stock.change_percent >= 0 ? '+' : ''}{stock.change_percent?.toFixed(2)}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </aside>
 
         {/* Stock Details */}
@@ -339,67 +519,194 @@ function App() {
           {selectedStock ? (
             <>
               <div className="stock-header-section">
-                <div>
+                <div className="stock-title">
                   <h1>{selectedStock.company_name}</h1>
-                  <p className="symbol">{selectedStock.symbol}</p>
+                  <div className="stock-meta">
+                    <span className="symbol">{selectedStock.symbol}</span>
+                    {selectedStock.sector && (
+                      <span className="sector">
+                        <Building2 size={14} />
+                        {selectedStock.sector}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="price-section">
                   <h2>${selectedStock.price?.toFixed(2)}</h2>
                   <span className={selectedStock.change_percent >= 0 ? 'change positive' : 'change negative'}>
+                    {selectedStock.change_percent >= 0 ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
                     {selectedStock.change_percent >= 0 ? '+' : ''}
                     {selectedStock.change_percent?.toFixed(2)}%
                   </span>
                 </div>
               </div>
 
-              {/* Chart */}
-              {stockHistory.length > 0 && (
-                <div className="chart-container">
-                  <h3>Price History (Today)</h3>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={stockHistory}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+              {/* Chart with Period Selection */}
+              <div className="chart-container">
+                <div className="chart-header">
+                  <h3>Price Chart</h3>
+                  <div className="period-selector">
+                    {CHART_PERIODS.map(period => (
+                      <button
+                        key={period.label}
+                        className={`period-btn ${selectedPeriod.label === period.label ? 'active' : ''}`}
+                        onClick={() => handlePeriodChange(period)}
+                      >
+                        {period.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                
+                {isLoadingChart ? (
+                  <div className="chart-loading">
+                    <div className="loading-spinner large"></div>
+                    <p>Loading chart data...</p>
+                  </div>
+                ) : stockHistory.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={350}>
+                    <AreaChart data={stockHistory}>
+                      <defs>
+                        <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#00d4ff" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#00d4ff" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke={isDarkMode ? '#333' : '#eee'} />
                       <XAxis 
                         dataKey="timestamp" 
-                        tickFormatter={(time) => new Date(time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                        stroke="#888"
+                        tickFormatter={(time) => {
+                          const date = new Date(time);
+                          if (selectedPeriod.period === '1d') {
+                            return date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                          }
+                          return date.toLocaleDateString([], {month: 'short', day: 'numeric'});
+                        }}
+                        stroke={isDarkMode ? '#888' : '#666'}
+                        tick={{ fontSize: 12 }}
                       />
-                      <YAxis stroke="#888" domain={['auto', 'auto']} />
+                      <YAxis 
+                        stroke={isDarkMode ? '#888' : '#666'}
+                        domain={['auto', 'auto']}
+                        tickFormatter={(val) => `$${val.toFixed(0)}`}
+                        tick={{ fontSize: 12 }}
+                      />
                       <Tooltip 
-                        contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid #333' }}
+                        contentStyle={{ 
+                          backgroundColor: isDarkMode ? '#1a1a2e' : '#fff', 
+                          border: `1px solid ${isDarkMode ? '#333' : '#ddd'}`,
+                          borderRadius: '8px'
+                        }}
                         labelFormatter={(time) => new Date(time).toLocaleString()}
+                        formatter={(value) => [`$${value.toFixed(2)}`, 'Price']}
                       />
-                      <Line 
+                      <Area 
                         type="monotone" 
                         dataKey="close" 
                         stroke="#00d4ff" 
                         strokeWidth={2}
-                        dot={false}
+                        fill="url(#colorPrice)"
                       />
-                    </LineChart>
+                    </AreaChart>
                   </ResponsiveContainer>
-                </div>
-              )}
+                ) : (
+                  <div className="no-chart-data">
+                    <p>No chart data available</p>
+                  </div>
+                )}
+              </div>
 
-              {/* Stock Stats */}
-              <div className="stock-stats">
-                <div className="stat-item">
-                  <span className="stat-label">Volume</span>
-                  <span className="stat-value">{selectedStock.volume?.toLocaleString()}</span>
+              {/* Stock Stats Grid */}
+              <div className="stock-stats-grid">
+                <div className="stat-card">
+                  <div className="stat-icon"><DollarSign size={20} /></div>
+                  <div className="stat-content">
+                    <span className="stat-label">Market Cap</span>
+                    <span className="stat-value">{formatNumber(selectedStock.market_cap)}</span>
+                  </div>
                 </div>
-                <div className="stat-item">
-                  <span className="stat-label">Market Cap</span>
-                  <span className="stat-value">
-                    ${(selectedStock.market_cap / 1e9).toFixed(2)}B
-                  </span>
+                
+                <div className="stat-card">
+                  <div className="stat-icon"><Activity size={20} /></div>
+                  <div className="stat-content">
+                    <span className="stat-label">Volume</span>
+                    <span className="stat-value">{formatVolume(selectedStock.volume)}</span>
+                  </div>
+                </div>
+                
+                <div className="stat-card">
+                  <div className="stat-icon"><PieChart size={20} /></div>
+                  <div className="stat-content">
+                    <span className="stat-label">P/E Ratio</span>
+                    <span className="stat-value">{selectedStock.pe_ratio || 'N/A'}</span>
+                  </div>
+                </div>
+                
+                <div className="stat-card">
+                  <div className="stat-icon"><Percent size={20} /></div>
+                  <div className="stat-content">
+                    <span className="stat-label">Dividend Yield</span>
+                    <span className="stat-value">{selectedStock.dividend_yield ? `${selectedStock.dividend_yield}%` : 'N/A'}</span>
+                  </div>
+                </div>
+                
+                <div className="stat-card">
+                  <div className="stat-icon"><TrendingUp size={20} /></div>
+                  <div className="stat-content">
+                    <span className="stat-label">52W High</span>
+                    <span className="stat-value">${selectedStock.year_high?.toFixed(2) || 'N/A'}</span>
+                  </div>
+                </div>
+                
+                <div className="stat-card">
+                  <div className="stat-icon"><TrendingDown size={20} /></div>
+                  <div className="stat-content">
+                    <span className="stat-label">52W Low</span>
+                    <span className="stat-value">${selectedStock.year_low?.toFixed(2) || 'N/A'}</span>
+                  </div>
+                </div>
+                
+                <div className="stat-card">
+                  <div className="stat-icon"><Clock size={20} /></div>
+                  <div className="stat-content">
+                    <span className="stat-label">Day Range</span>
+                    <span className="stat-value">${selectedStock.day_low?.toFixed(2)} - ${selectedStock.day_high?.toFixed(2)}</span>
+                  </div>
+                </div>
+                
+                <div className="stat-card">
+                  <div className="stat-icon"><Info size={20} /></div>
+                  <div className="stat-content">
+                    <span className="stat-label">Beta</span>
+                    <span className="stat-value">{selectedStock.beta || 'N/A'}</span>
+                  </div>
                 </div>
               </div>
+
+              {/* Company Description */}
+              {selectedStock.description && (
+                <div className="company-description">
+                  <h3>About {selectedStock.company_name}</h3>
+                  <p>{selectedStock.description}</p>
+                </div>
+              )}
             </>
           ) : (
             <div className="empty-state">
-              <BarChart3 size={64} />
-              <h2>Select a stock from your watchlist</h2>
-              <p>Or search for a new stock to add</p>
+              <BarChart3 size={80} />
+              <h2>Welcome to AI StockPulse</h2>
+              <p>Select a stock from your watchlist or search for a new one</p>
+              <div className="quick-actions">
+                <button onClick={() => addToWatchlist('AAPL')}>
+                  <Plus size={16} /> Add AAPL
+                </button>
+                <button onClick={() => addToWatchlist('GOOGL')}>
+                  <Plus size={16} /> Add GOOGL
+                </button>
+                <button onClick={() => addToWatchlist('TSLA')}>
+                  <Plus size={16} /> Add TSLA
+                </button>
+              </div>
             </div>
           )}
         </main>

@@ -11,7 +11,7 @@ services:
       MYSQL_USER: stockuser
       MYSQL_PASSWORD: stockpass
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql # Persist database data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql # Initialize DB with a SQL script when the container starts
@@ -31,7 +31,10 @@ services:
       - "8000:8000"
     environment:
       - DATABASE_URL=mysql+pymysql://stockuser:stockpass@db:3306/stockdb
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OLLAMA_HOST=http://host.docker.internal:11434
+      - OLLAMA_MODEL=qwen2.5:0.5b
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       db:
         condition: service_healthy

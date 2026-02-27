@@ -51,10 +51,13 @@ body {
   font-weight: bold;
 }
 
-.search-bar {
+.search-container {
   flex: 1;
   max-width: 500px;
   position: relative;
+}
+
+.search-bar {
   display: flex;
   align-items: center;
   background: rgba(255, 255, 255, 0.05);
@@ -105,6 +108,76 @@ body {
 .search-button:hover {
   transform: scale(1.05);
   box-shadow: 0 4px 12px rgba(0, 212, 255, 0.4);
+}
+
+/* Header Actions */
+.header-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.icon-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #888;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s;
+}
+
+.icon-btn:hover {
+  background: rgba(0, 212, 255, 0.1);
+  border-color: #00d4ff;
+  color: #00d4ff;
+}
+
+.icon-btn.spinning svg {
+  animation: spin 1s linear infinite;
+}
+
+/* Market Indices Ticker */
+.market-ticker {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  padding: 0.75rem 0;
+  margin-top: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.ticker-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.ticker-name {
+  color: #888;
+  font-weight: 500;
+}
+
+.ticker-price {
+  color: #fff;
+  font-weight: 600;
+}
+
+.ticker-change {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.ticker-change.positive {
+  color: #2ecc71;
+}
+
+.ticker-change.negative {
+  color: #ff4757;
 }
 
 /* Search Results */
@@ -226,29 +299,112 @@ body {
   padding: 0 2rem;
 }
 
-/* Watchlist Sidebar */
-.watchlist {
+/* Sidebar */
+.sidebar {
   width: 350px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  position: sticky;
+  top: 100px;
+  height: fit-content;
+}
+
+/* Watchlist */
+.watchlist {
   background: rgba(26, 26, 46, 0.6);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
   padding: 1.5rem;
-  height: fit-content;
-  position: sticky;
-  top: 100px;
 }
 
 .watchlist h2 {
   margin-bottom: 1.5rem;
   color: #00d4ff;
   font-size: 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.empty-watchlist {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: #666;
+}
+
+.empty-watchlist p {
+  margin-bottom: 0.5rem;
+}
+
+.empty-watchlist span {
+  font-size: 0.85rem;
 }
 
 .watchlist-items {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+/* Trending Section */
+.trending-section {
+  background: rgba(26, 26, 46, 0.6);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 1.5rem;
+}
+
+.trending-section h3 {
+  color: #00d4ff;
+  font-size: 1rem;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.trending-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.trending-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.trending-item:hover {
+  background: rgba(0, 212, 255, 0.1);
+}
+
+.trending-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.trending-info strong {
+  font-size: 0.9rem;
+}
+
+.trending-info span {
+  font-size: 0.8rem;
+  color: #888;
+}
+
+.trending-change {
+  font-weight: 600;
+  font-size: 0.85rem;
 }
 
 .watchlist-item {
@@ -351,15 +507,29 @@ body {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.stock-header-section h1 {
+.stock-title h1 {
   font-size: 2rem;
   margin-bottom: 0.5rem;
+}
+
+.stock-meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 
 .symbol {
   color: #00d4ff;
   font-size: 1.1rem;
   font-weight: 600;
+}
+
+.sector {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #888;
+  font-size: 0.9rem;
 }
 
 .price-section {
@@ -374,6 +544,10 @@ body {
 .change {
   font-size: 1.25rem;
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
 }
 
 /* Chart */
@@ -381,12 +555,141 @@ body {
   margin: 2rem 0;
 }
 
-.chart-container h3 {
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.chart-container h3,
+.chart-header h3 {
+  color: #00d4ff;
+  margin: 0;
+}
+
+.period-selector {
+  display: flex;
+  gap: 0.25rem;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0.25rem;
+  border-radius: 8px;
+}
+
+.period-btn {
+  background: transparent;
+  border: none;
+  color: #888;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.period-btn:hover {
+  color: #fff;
+}
+
+.period-btn.active {
+  background: #00d4ff;
+  color: #fff;
+}
+
+.chart-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 350px;
+  color: #888;
+}
+
+.loading-spinner.large {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 1rem;
+}
+
+.no-chart-data {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 350px;
+  color: #666;
+}
+
+/* Stock Stats Grid */
+.stock-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.stat-card {
+  background: rgba(0, 212, 255, 0.05);
+  border: 1px solid rgba(0, 212, 255, 0.15);
+  border-radius: 12px;
+  padding: 1.25rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  transition: all 0.3s;
+}
+
+.stat-card:hover {
+  background: rgba(0, 212, 255, 0.1);
+  border-color: rgba(0, 212, 255, 0.3);
+  transform: translateY(-2px);
+}
+
+.stat-icon {
+  color: #00d4ff;
+  opacity: 0.8;
+}
+
+.stat-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.stat-label {
+  color: #888;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.stat-value {
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+/* Company Description */
+.company-description {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.company-description h3 {
   color: #00d4ff;
   margin-bottom: 1rem;
 }
 
-/* Stock Stats */
+.company-description p {
+  color: #aaa;
+  line-height: 1.7;
+  font-size: 0.95rem;
+}
+
+/* Stock Stats (Legacy) */
 .stock-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -432,11 +735,42 @@ body {
 .empty-state svg {
   margin-bottom: 1.5rem;
   opacity: 0.5;
+  color: #00d4ff;
 }
 
 .empty-state h2 {
-  color: #888;
+  color: #fff;
   margin-bottom: 0.5rem;
+}
+
+.empty-state p {
+  color: #888;
+  margin-bottom: 2rem;
+}
+
+.quick-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.quick-actions button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(0, 212, 255, 0.1);
+  border: 1px solid rgba(0, 212, 255, 0.3);
+  color: #00d4ff;
+  padding: 0.75rem 1.25rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.3s;
+}
+
+.quick-actions button:hover {
+  background: rgba(0, 212, 255, 0.2);
+  transform: translateY(-2px);
 }
 
 /* Chat Button */
@@ -503,6 +837,9 @@ body {
 
 .chat-header h3 {
   color: #00d4ff;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .chat-header button {
@@ -537,7 +874,17 @@ body {
   height: 100%;
   color: #666;
   text-align: center;
-  gap: 1rem;
+  gap: 0.75rem;
+}
+
+.chat-welcome h4 {
+  color: #fff;
+  font-size: 1.1rem;
+}
+
+.chat-welcome p {
+  color: #888;
+  font-size: 0.9rem;
 }
 
 .example-questions {
@@ -698,18 +1045,156 @@ body {
 }
 
 /* Responsive Design */
+@media (max-width: 1200px) {
+  .stock-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 @media (max-width: 1024px) {
   .main-content {
     flex-direction: column;
   }
   
-  .watchlist {
+  .sidebar {
     width: 100%;
     position: static;
+    flex-direction: row;
+    gap: 1rem;
+  }
+  
+  .watchlist, .trending-section {
+    flex: 1;
   }
   
   .chat-panel {
     width: 90%;
     right: 5%;
   }
+  
+  .market-ticker {
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .header-content {
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  
+  .search-container {
+    order: 3;
+    max-width: 100%;
+    width: 100%;
+  }
+  
+  .sidebar {
+    flex-direction: column;
+  }
+  
+  .stock-stats-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .stock-header-section {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .price-section {
+    text-align: left;
+  }
+  
+  .change {
+    justify-content: flex-start;
+  }
+}
+
+/* Light Mode Theme */
+body.light-mode {
+  background: linear-gradient(135deg, #f5f7fa, #e4e8ec, #f0f2f5);
+  color: #1a1a2e;
+}
+
+body.light-mode .header {
+  background: rgba(255, 255, 255, 0.95);
+  border-bottom-color: rgba(0, 0, 0, 0.1);
+}
+
+body.light-mode .watchlist,
+body.light-mode .trending-section,
+body.light-mode .stock-details {
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+body.light-mode .search-bar {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+body.light-mode .search-bar input {
+  color: #1a1a2e;
+}
+
+body.light-mode .watchlist-item,
+body.light-mode .trending-item {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+body.light-mode .watchlist-item:hover,
+body.light-mode .trending-item:hover {
+  background: rgba(0, 212, 255, 0.1);
+}
+
+body.light-mode .stat-card {
+  background: rgba(0, 212, 255, 0.05);
+  border-color: rgba(0, 212, 255, 0.2);
+}
+
+body.light-mode .company-name,
+body.light-mode .stat-label,
+body.light-mode .ticker-name {
+  color: #666;
+}
+
+body.light-mode .stock-header strong,
+body.light-mode .stat-value,
+body.light-mode .stock-title h1,
+body.light-mode .price-section h2 {
+  color: #1a1a2e;
+}
+
+body.light-mode .chat-panel {
+  background: rgba(255, 255, 255, 0.98);
+}
+
+body.light-mode .chat-message.assistant .message-content {
+  background: rgba(0, 0, 0, 0.05);
+  color: #1a1a2e;
+}
+
+body.light-mode .icon-btn {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: #666;
+}
+
+body.light-mode .period-selector {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+body.light-mode .period-btn {
+  color: #666;
+}
+
+body.light-mode .period-btn:hover {
+  color: #1a1a2e;
+}
+
+body.light-mode .search-results {
+  background: rgba(255, 255, 255, 0.98);
+  border-color: rgba(0, 0, 0, 0.1);
 }

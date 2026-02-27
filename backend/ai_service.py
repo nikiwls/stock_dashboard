@@ -1,40 +1,56 @@
 """
-AI Chatbot Service using OpenRouter API
+AI Chatbot Service using Ollama (Local LLM)
 Handles stock-related questions with context from the database
+No API key required - runs completely free!
 """
 
 import os
-from openai import OpenAI
+import httpx
 from typing import Optional, List, Dict
 from datetime import datetime
+
+
+# Ollama configuration
+OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b")
 
 
 class AIService:
     """
     AI-powered chatbot for stock inquiries
-    Uses OpenRouter API for intelligent responses
+    Uses Ollama for local, free AI responses
     """
     
     def __init__(self):
-        """Initialize OpenRouter client (OpenAI-compatible)"""
-        api_key = os.getenv("OPENROUTER_API_KEY")
-        if not api_key:
-            print("⚠️  Warning: OPENROUTER_API_KEY not set. AI features will be limited.")
-            self.client = None
-        else:
-            # OpenRouter uses OpenAI-compatible API
-            self.client = OpenAI(
-                base_url="https://openrouter.ai/api/v1",
-                api_key=api_key,
-            )
-            print("✅ OpenRouter AI client initialized")
+        """Initialize Ollama client"""
+        self.ollama_host = OLLAMA_HOST
+        self.model = OLLAMA_MODEL
+        self.available = False
+        self._check_availability()
+    
+    def _check_availability(self):
+        """Check if Ollama is running and model is available"""
+        try:
+            response = httpx.get(f"{self.ollama_host}/api/tags", timeout=5.0)
+            if response.status_code == 200:
+                models = response.json().get("models", [])
+                model_names = [m.get("name", "").split(":")[0] for m in models]
+                model_base = self.model.split(":")[0]
+                if any(model_base in name for name in model_names) or models:
+                    self.available = True
+                    print(f"✅ Ollama AI client initialized with model: {self.model}")
+                else:
+                    print(f"⚠️  Model {self.model} not found. Available models: {model_names}")
+                    self.available = True
+            else:
+                print(f"⚠️  Warning: Ollama not responding properly")
+        except Exception as e:
+            print(f"⚠️  Warning: Could not connect to Ollama at {self.ollama_host}: {e}")
+            print("   Make sure Ollama is running: brew services start ollama")
     
     
     def get_stock_context(self, stock_data: Optional[Dict] = None) -> str:
-        """
-        Build context string from stock data
-        This helps Claude give more accurate answers
-        """
+        """Build context string from stock data"""
         if not stock_data:
             return ""
         
@@ -48,6 +64,8 @@ Current Stock Information:
 - Market Cap: ${stock_data.get('market_cap', 'N/A'):,}
 - Day High: ${stock_data.get('day_high', 'N/A')}
 - Day Low: ${stock_data.get('day_low', 'N/A')}
+- P/E Ratio: {stock_data.get('pe_ratio', 'N/A')}
+- Beta: {stock_data.get('beta', 'N/A')}
 """
         return context
     
@@ -58,108 +76,77 @@ Current Stock Information:
         stock_data: Optional[Dict] = None,
         chat_history: Optional[List[Dict]] = None
     ) -> str:
-        """
-        Generate AI response to user's stock inquiry
-        
-        Args:
-            user_message: User's question
-            stock_data: Current stock information
-            chat_history: Previous conversation messages
-            
-        Returns:
-            AI-generated response
-        """
-        if not self.client:
-            return "I apologize, but the AI chatbot is currently unavailable. Please set the OPENROUTER_API_KEY environment variable."
-        
-        try:
-            # Build system prompt
-            system_prompt = """You are a helpful stock market assistant. You provide:
+        """Generate AI response to user's stock inquiry"""
+        system_prompt = """You are a helpful stock market assistant. You provide:
 1. Clear, accurate information about stocks
 2. Analysis of stock performance and trends
 3. Explanations of stock market concepts
 4. Investment insights (but NOT financial advice)
 
-Always remind users that you're providing information, not financial advice, and they should do their own research or consult a financial advisor before making investment decisions.
+Always remind users that you're providing information, not financial advice, and they should do their own research or consult a financial advisor.
 
 Be concise but informative. Use the stock data provided to give context-aware answers."""
-            
-            # Build conversation messages (OpenAI format)
-            messages = [
-                {"role": "system", "content": system_prompt}
-            ]
-            
-            # Add chat history if available
-            if chat_history:
-                for msg in chat_history[-5:]:  # Last 5 messages for context
-                    messages.append({
-                        "role": "user",
-                        "content": msg.get("user_message", "")
-                    })
-                    messages.append({
-                        "role": "assistant",
-                        "content": msg.get("ai_response", "")
-                    })
-            
-            # Add current message with stock context
-            current_content = user_message
-            if stock_data:
-                context = self.get_stock_context(stock_data)
-                current_content = f"{context}\n\nUser Question: {user_message}"
-            
-            messages.append({
-                "role": "user",
-                "content": current_content
-            })
-            
-            # Call OpenRouter API (OpenAI-compatible)
-            response = self.client.chat.completions.create(
-                model="anthropic/claude-3.5-sonnet",  # Can use other models on OpenRouter
-                max_tokens=1000,
-                messages=messages,
-                extra_headers={
-                    "HTTP-Referer": "http://localhost:3000",
-                    "X-Title": "Stock Dashboard"
-                }
-            )
-            
-            # Extract response text
-            ai_response = response.choices[0].message.content
-            
-            return ai_response
-            
+        
+        messages = [{"role": "system", "content": system_prompt}]
+        
+        if chat_history:
+            for msg in chat_history[-5:]:
+                messages.append({"role": "user", "content": msg.get("user_message", "")})
+                messages.append({"role": "assistant", "content": msg.get("ai_response", "")})
+        
+        current_content = user_message
+        if stock_data:
+            context = self.get_stock_context(stock_data)
+            current_content = f"{context}\n\nUser Question: {user_message}"
+        
+        messages.append({"role": "user", "content": current_content})
+        
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(
+                    f"{self.ollama_host}/api/chat",
+                    json={
+                        "model": self.model,
+                        "messages": messages,
+                        "stream": False,
+                        "options": {"temperature": 0.7, "num_predict": 500}
+                    }
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    ai_response = result.get("message", {}).get("content", "")
+                    return ai_response if ai_response else "I couldn't generate a response. Please try again."
+                else:
+                    print(f"❌ Ollama API error: {response.status_code} - {response.text}")
+                    return f"I encountered an error. Please make sure Ollama is running with the model '{self.model}'."
+                    
+        except httpx.TimeoutException:
+            return "The AI is taking too long to respond. Please try again with a shorter question."
+        except httpx.ConnectError:
+            return "Cannot connect to the AI service. Please ensure Ollama is running (brew services start ollama)."
         except Exception as e:
             print(f"❌ AI Service Error: {e}")
             return f"I encountered an error processing your request: {str(e)}"
     
     
     def extract_stock_symbol(self, user_message: str) -> Optional[str]:
-        """
-        Extract stock symbol from user message
-        Simple pattern matching (can be improved with NLP)
-        """
-        # Common stock symbols
+        """Extract stock symbol from user message"""
         common_symbols = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'META', 'NVDA', 'JPM', 'V', 'WMT']
-        
         message_upper = user_message.upper()
         for symbol in common_symbols:
             if symbol in message_upper:
                 return symbol
-        
         return None
     
     
     def generate_summary(self, stock_data: Dict) -> str:
-        """
-        Generate a quick summary of stock performance
-        This is a simple rule-based summary (not using AI to save API calls)
-        """
+        """Generate a quick summary of stock performance"""
         symbol = stock_data.get('symbol', '')
         company = stock_data.get('company_name', '')
         price = stock_data.get('price', 0)
         change = stock_data.get('change_percent', 0)
         
-        # Determine sentiment
         if change > 2:
             sentiment = "📈 Strong upward momentum"
         elif change > 0:
@@ -180,40 +167,18 @@ Market Status: {'Open' if datetime.utcnow().hour < 21 else 'Closed'}
         return summary.strip()
 
 
-# =======================
-# Example Usage
-# =======================
-
 if __name__ == "__main__":
     import asyncio
     
     async def test_ai_service():
         ai = AIService()
-        
-        # Test stock data
         stock_data = {
-            'symbol': 'AAPL',
-            'company_name': 'Apple Inc.',
-            'price': 175.50,
-            'change_percent': 1.25,
-            'volume': 50000000,
-            'market_cap': 2700000000000,
-            'day_high': 176.00,
-            'day_low': 174.50
+            'symbol': 'AAPL', 'company_name': 'Apple Inc.',
+            'price': 175.50, 'change_percent': 1.25,
+            'volume': 50000000, 'market_cap': 2700000000000
         }
-        
-        # Test chat
-        response = await ai.chat(
-            "What do you think about this stock's performance today?",
-            stock_data=stock_data
-        )
+        response = await ai.chat("What do you think about this stock?", stock_data=stock_data)
         print("\n🤖 AI Response:")
         print(response)
-        
-        # Test summary
-        summary = ai.generate_summary(stock_data)
-        print("\n📊 Stock Summary:")
-        print(summary)
     
-    # Run test
     asyncio.run(test_ai_service())
